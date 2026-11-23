@@ -103,10 +103,15 @@
 5. `0d33faa`/`c12c12e`：尝试底栏透明化、直播 cell 不撑高。真机复测反馈：底栏与主播名重叠，且**刷视频会卡死**。
 6. `07bbd83`（当前版本，**回滚**）：上述针对直播遮挡的 3~5 步改动**全部回滚**，代码恢复到 `c812537` 稳定基线（仅保留第 1、2 步已验证生效的 −20 位移修复）。卡死疑似由 `AWEFeedTableView layoutSubviews` 中遍历 `visibleCells` 并改 frame 引发布局重入。
 
-**当前版本 CI 构建通过**：[run #45183636522](https://github.com/Yang-tfs/DYYY/actions/runs/45183636522)。
-本地 dylib 只保留这一份：`DYYY_3.0.2_run45183636522.dylib`（SHA-256 `23ADF342ACD41206D3D1B41D5C783864C8AAF641428F511BFA4BBB943FF2314A`）。其他实验版本的 dylib 均已删除。
+7. `e56da84`（当前版本，**重新修复重叠**）：
+   - 彻底撤销 `0d33faa` 的底栏透明化（`livePreStream` / `registerLivePreStreamController` / 直播 VC 的 `viewDidLayoutSubviews` hook）——透明化只会让底栏文字与主播名叠在一起；
+   - 在 `IESLiveStackView layoutSubviews` 中，**只对直接包含 `AWELivePrestreamGuideView`（主播名容器）的那一层**施加 `CGAffineTransformTranslate(0, -targetHeight)` 绝对位移，让主播名落在底栏上方；其他嵌套层保持 identity，不累加；
+   - 关键约束：**不碰 `AWEFeedTableView` 的 frame、不遍历 `visibleCells`**——上次卡死就是因为在 `layoutSubviews` 里做这两件事引发布局重入。
 
-**结论**：直播全屏的"遮挡/重叠"问题暂不修复，维持 fork 原始行为（该问题在 40.7.0 上本就存在，41.2.0 表现更明显）。优先保证不卡死。如后续要再尝试，应避免在任何 `layoutSubviews` 中遍历可见 cell 改 frame。
+**当前版本 CI 构建通过**：[run #45186035849](https://github.com/Yang-tfs/DYYY/actions/runs/45186035849)。
+本地 dylib 只保留这一份：`DYYY_3.0.2_run45186035849.dylib`（SHA-256 `1225FF6849007F6734198A11602CF78531C9F9E6EE61CEE50B5247A6576F8512`）。
+
+**待真机复测**：① 主播名是否落到底栏上方、不再重叠；② 刷视频是否不再卡死（重点）。若仍异常，请再摇一摇导出日志，重点看 `AWELivePrestreamGuideView` 的绝对 Y 与底栏 y=843 的关系。
 
 ### 4.1 构建中修复的编译问题记录
 
