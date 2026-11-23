@@ -1141,7 +1141,7 @@ static void DYYYAppendVCProbe(UIViewController *vc, NSMutableString *out, NSInte
     }
 }
 
-static void DYYYAppendViewTree(UIView *view, NSMutableString *out, NSInteger depth) {
+static void DYYYAppendViewTreeWithProbes(UIView *view, NSMutableString *out, NSInteger depth) {
     if (!view)
         return;
     for (NSInteger i = 0; i < depth; i++)
@@ -1196,12 +1196,12 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *out, NSInteger dep
         DYYYAppendProbeLine(out, depth, [NSString stringWithFormat:@"probe exception: %@", e.reason]);
     }
     for (UIView *sub in view.subviews)
-        DYYYAppendViewTree(sub, out, depth + 1);
+        DYYYAppendViewTreeWithProbes(sub, out, depth + 1);
 }
 
 + (NSString *)describeViewTree:(UIView *)root {
     NSMutableString *out = [NSMutableString string];
-    DYYYAppendViewTree(root, out, 0);
+    DYYYAppendViewTreeWithProbes(root, out, 0);
     return out;
 }
 
