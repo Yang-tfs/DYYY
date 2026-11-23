@@ -95,7 +95,7 @@
 
 **诊断**：直播信息层所有 `IESLiveStackView` 被强制 `translateY=-20`（日志中 −20/−40/−131 逐层累加）。根因是 `DYYY.xm` 中 2025 年的临时 hack（提交 `b289285` "不知道谁改的 写死把"）：把计算好的 `tx/ty` 丢弃，对每个嵌套 StackView 无条件写死 `CGAffineTransformMakeTranslation(0, -20)`。41.2.0 直播 cell 已是原生全屏高度，该补偿纯属多余且因嵌套累积导致错位。
 
-**修复**（`8697039`）：`IESLiveStackView layoutSubviews` 改为只在用户显式设置昵称/元素缩放时应用缩放 transform，否则恢复 identity；不再对每个嵌套层施加全屏位移。CI 构建验证见下方。
+**修复**（`8697039`）：`IESLiveStackView layoutSubviews` 改为只在用户显式设置昵称/元素缩放时应用缩放 transform，否则恢复 identity；不再对每个嵌套层施加全屏位移。CI 构建验证通过：[run #45171418708](https://github.com/Yang-tfs/DYYY/actions/runs/45171418708)（artifact `DYYY-20261123201600`）。**待真机复测确认**。
 
 ### 4.1 构建中修复的编译问题记录
 
