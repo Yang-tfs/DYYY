@@ -12219,6 +12219,15 @@ static Class TagViewClass = nil;
 
 %end
 
+%hook AWELiveNewPreStreamViewController
+// 41.2.0 推荐流直播：把直播控制器登记进全屏协调器并触发底栏透明化。
+// 否则直播底部控件（主播名/标签，y≈831~926）会被 y=843 的不透明底栏遮挡。
+- (void)viewDidLayoutSubviews {
+    %orig;
+    [DYYYFullscreenCoordinator registerLivePreStreamController:self];
+}
+%end
+
 %hook IESLiveStackView
 
 + (void)initialize {
