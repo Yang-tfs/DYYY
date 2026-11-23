@@ -12219,6 +12219,14 @@ static Class TagViewClass = nil;
 
 %end
 
+%hook AWELiveNewPreStreamViewController
+// 41.2.0 推荐流直播：登记进全屏协调器，触发底栏透明化。
+- (void)viewDidLayoutSubviews {
+    %orig;
+    [DYYYFullscreenCoordinator registerLivePreStreamController:self];
+}
+%end
+
 %hook IESLiveStackView
 
 + (void)initialize {
@@ -12313,11 +12321,43 @@ static Class TagViewClass = nil;
         }
 
         // 41.2.0 底部信息（主播名/在线人数）与底栏重叠修复：
-        // 直接包含 AWELivePrestreamGuideView 的这一层 IESLiveStackView 是"主播名容器"。
-        // 全屏时直播 cell 被撑到屏高(926)，该容器贴到 y≈831，压在底栏(y=843~926)上。
-        // 仅对这一层做绝对位移上移一个底栏高度（不是逐层累加），让主播名落在底栏上方。
-        if (shouldShiftUp && [DYYYUtils containsSubviewOfClass:GuideViewClass inContainer:self]) {
-            targetTransform = CGAffineTransformTranslate(targetTransform, 0, -targetHeight);
+        // 只上移"直接"持有主播名 AWELivePrestreamGuideView 的那一层 stack。
+        // 注意：不能用 containsSubviewOfClass（递归），否则多层嵌套 stack 都会匹配，
+        // 每层各上移一次底栏高度会累加，导致主播名被推得过高。
+        // 这里要求主播名容器是当前 stack 的【直接子视图】，保证整条链只上移一次。
+        if (shouldShiftUp && GuideViewClass) {
+            BOOL directlyContainsGuide = NO;
+            for (UIView *child in self.subviews) {
+                if ([child isKindOfClass:GuideViewClass] ||
+                    [NSStringFromClass([child class]) containsString:@"AWELivePrestreamGuideView"]) {
+                    directlyContainsGuide = YES;
+                    break;
+                }
+                // 兼容中间包壳的情况（日志里实际是 stack -> IESLiveLayoutContainerView
+                // -> AWEBaseElementView -> AWELivePrestreamGuideView）。
+                // 只要子视图不是另一层 IESLiveStackView，就往下再找最多 2 层。
+                if (![child isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+                    for (UIView *sub in child.subviews) {
+                        if ([sub isKindOfClass:GuideViewClass] ||
+                            [NSStringFromClass([sub class]) containsString:@"AWELivePrestreamGuideView"]) {
+                            directlyContainsGuide = YES;
+                            break;
+                        }
+                        for (UIView *sub2 in sub.subviews) {
+                            if ([sub2 isKindOfClass:GuideViewClass] ||
+                                [NSStringFromClass([sub2 class]) containsString:@"AWELivePrestreamGuideView"]) {
+                                directlyContainsGuide = YES;
+                                break;
+                            }
+                        }
+                        if (directlyContainsGuide) break;
+                    }
+                }
+                if (directlyContainsGuide) break;
+            }
+            if (directlyContainsGuide) {
+                targetTransform = CGAffineTransformTranslate(targetTransform, 0, -targetHeight);
+            }
         }
 
         if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {

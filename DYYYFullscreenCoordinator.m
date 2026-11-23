@@ -81,10 +81,14 @@
 + (BOOL)usesFullscreenLayoutForController:(UIViewController *)controller {
     Class remoteClass = NSClassFromString(@"AFDPlayRemoteFeedTableViewController");
     BOOL pureMode = NO;
+    BOOL livePreStream = NO;
     for (UIViewController *parent = controller; parent; parent = parent.parentViewController) {
         if (remoteClass && [parent isKindOfClass:remoteClass]) return NO;
         if ([parent respondsToSelector:@selector(getPureModeContainerFrame)]) pureMode = YES;
+        // 推荐流直播：参与全屏底栏透明化，直播底部信息才不会被不透明底栏遮挡。
+        if ([parent isKindOfClass:NSClassFromString(@"AWELiveNewPreStreamViewController")]) livePreStream = YES;
     }
+    if (livePreStream) return YES;
     if (pureMode || [self usesRecommendedLayoutForController:controller] || [self usesDetailLayoutForController:controller]) return YES;
     UIView *view = controller.viewIfLoaded;
     if (!view.window) return NO;
@@ -355,6 +359,14 @@
     }
     BOOL enabled = DYYYGetBool(@"DYYYHideBottomBg") || (DYYYGetBool(@"DYYYEnableFullScreen") && playback);
     [self layoutBottomBar:bar controller:nil enabled:enabled];
+}
++ (void)registerLivePreStreamController:(UIViewController *)controller {
+    if (![NSThread isMainThread] || !controller) return;
+    if (!controller.viewIfLoaded.window) return;
+    [[self interactions] addObject:controller];
+    for (UIView *bar in [self tabBars].allObjects) {
+        if (bar.window == controller.viewIfLoaded.window) [self layoutRootTabBar:bar];
+    }
 }
 + (void)registerTabBar:(UIView *)tabBar {
     if (![NSThread isMainThread]) return;
