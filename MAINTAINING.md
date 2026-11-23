@@ -75,6 +75,20 @@
 | GitHub Actions 云端编译 | ✅ 通过 | [run #45166185863](https://github.com/Yang-tfs/DYYY/actions/runs/45166185863) success；产物 `DYYY-20261123193455`：3 个 Deb（rootful/rootless/roothide）+ `DYYY_3.0.2.dylib` |
 | 真机回归 | ⏳ 待做 | 需 macOS + 越狱/注入环境（建议 iPhone XR / iOS 16 / 抖音 40.7.0 与 41.2.0 双版本） |
 
+### 4.0 IPA 静态核对（用户提供的砸壳包）
+
+用户提供砸壳 IPA：`C:\Users\Yang\Desktop\dyyy维护\抖音_41.2.0.ipa`。静态核对结果：
+
+| 项目 | 结果 |
+|---|---|
+| Info.plist | `CFBundleShortVersionString=41.2.0`，`CFBundleVersion=412021`，`MinimumOSVersion=15.0`，arm64 |
+| 加密状态 | 无 `LC_ENCRYPTION_INFO_64`（已砸壳） |
+| 实际代码位置 | 主二进制 `Aweme` 仅 276 KB；hook 目标类全部在 `Frameworks/AwemeCore.framework/AwemeCore`（约 1 GB） |
+| v3.0 移植涉及的 35 个类/方法名 | **全部命中** AwemeCore（含 `AWEDSpeedCoreContainer`、`AWEPlayInteractionUserProfileContainerView`、`CommentLongPressPanel*`、`elementShouldShow`、`handleFastSpeed:`、`updateNowPlayingInfoWhenResiginActive` 等） |
+| Swift 类模块名 | `AWECommentLongPressPanelSwiftImpl` / `AWECommentIMSwiftImpl` / `AWECommentCommerceSwiftImpl` 等模块名与类名组件均存在，dotted 全名在 Swift metadata 中分段存储（非连续字符串），`objc_getClass` 的写法与 v3.0 一致 |
+
+结论：本次移植的 hook 目标与用户实际的抖音 41.2.0 二进制**完全匹配**，不是"按文档猜类名"。临时提取文件已清理。
+
 ### 4.1 构建中修复的编译问题记录
 
 前三次 CI 失败及修复（均已提交）：
