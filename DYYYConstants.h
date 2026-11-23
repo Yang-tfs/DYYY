@@ -4,6 +4,7 @@
 #define DYYY_NAME @"DYYY"
 #define DYYY_SETTINGS_NAME @"DYYY设置"
 
+// 版本号与 huami1314/DYYY (DYYY3) v3.0.2 对齐；本分支为 fork 架构 + 41.2.0 适配移植版
 #define DYYY_VERSION @"3.0.2"
 
 // 默认的远程 ABTest 配置地址
