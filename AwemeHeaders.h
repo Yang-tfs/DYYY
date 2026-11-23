@@ -669,7 +669,7 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 - (AWECommentLongPressPanelContext *)commentPageContext;
 @end
 
-@interface _TtC21AWEIncentiveSwiftImpl29IncentivePendantContainerView : UIView
+@interface _TtC21AWEIncentiveSwiftImpl20PendantContainerView : UIView
 @end
 
 @interface AWECommentLongPressPanelSwiftImpl_CommentLongPressPanelReportElement : NSObject
@@ -1313,7 +1313,7 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @interface AWEAwemeHotSpotTableViewController : UIViewController
 - (BOOL)prefersStatusBarHidden;
 @end
-@interface AWEFullPageFeedNewContainerViewController : UIViewController
+@interface AWEFullPageFeedContainerViewController : UIViewController
 - (BOOL)prefersStatusBarHidden;
 @end
 @interface AFDPureModePageContainerViewController : UIViewController
@@ -2140,4 +2140,67 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @interface _TtC33AWECommentPanelContainerSwiftImpl31CommentViewControllerStateModel : NSObject
 - (BOOL)isSkipCommentPanelLifecycle;
 - (BOOL)isCommentImageBrowsing;
+@end
+
+// ============================================================
+// v3.0 同步（抖音 41.2.0 适配）：以下类在 huami1314/DYYY v3.0 中引入。
+// 仅声明本项目实际 hook / 调用的方法，保持 AwemeHeaders.h 集中管理。
+// ============================================================
+#pragma mark - v3.0 同步：41.x  detail 行高基准
+@interface AWEDetailFeedScrollDelegateContainer : NSObject
+- (CGFloat)fixedCellHeight;
+@end
+@interface AWEUserProfileAdDataLayer : NSObject
+- (CGFloat)originalTableViewHeight;
+- (void)setOriginalTableViewHeight:(CGFloat)height;
+@end
+@interface AWEUserProFileAdVideoDataController : NSObject
+- (CGFloat)originalTableViewHeight;
+- (void)updateOriginalTableViewHeight:(CGFloat)height;
+@end
+@interface AWELivePostWorkLiveCardLayoutController : NSObject
+- (CGFloat)originalTableViewHeight;
+- (void)setOriginalTableViewHeight:(CGFloat)height;
+@end
+@interface AWELivePostWorkLiveCardLayoutDataLayer : NSObject
+- (CGFloat)normalHeight;
+- (CGFloat)originalTableViewHeight;
+- (void)setOriginalTableViewHeight:(CGFloat)height;
+@end
+
+#pragma mark - v3.0 同步：41.x DPlayer 长按倍速容器
+@interface AWEDSpeedCoreContainer : NSObject
+- (double)longPressFastSpeedValue;
+- (void)handleFastSpeed:(id)gesture;
+- (void)changeSpeed:(double)speed;
+@end
+@interface AWEDSpeedFeedContainer : NSObject
+- (double)longPressFastSpeedValue;
+@end
+@interface AWEDSpeedPinchContainer : NSObject
+- (double)longPressFastSpeedValue;
+@end
+@interface AFDPureModePageLongPressFastSpeedController : NSObject
+- (double)longPressFastSpeedValue;
+@end
+
+#pragma mark - v3.0 同步：41.x 头像/发布引导/个人页类改名
+@interface AWEProfileAvatarFunctionManager : NSObject
+- (BOOL)shouldShowSaveAvatarItem;
+@end
+@interface AWEPlayInteractionUserProfileContainerView : UIView
+@end
+@interface AWEProfilePublishGuideCollectionViewCell : UICollectionViewCell
+@end
+@interface AWEUserProfileUGCTaskCardStyleListCollectionViewCell : UICollectionViewCell
+- (BOOL)shouldShowPublishGuide;
+@end
+
+#pragma mark - v3.0 同步：41.x 后台播放写入口
+@interface AWEFeedBackgroundPlayManager (DYYYV3)
+- (void)updateNowPlayingInfoPlayback;
+@end
+@interface AWEAwemeBackgroundPlayModule (DYYYV3)
+- (void)updateNowPlayingInfoAfterSetModel;
+- (void)updateNowPlayingInfoWhenResiginActive;
 @end

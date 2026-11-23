@@ -897,6 +897,23 @@ static BOOL DYYYShouldBlockFeedNowPlayingSystemInfoWrite(void) {
     %orig;
 }
 
+// v3.0 补充：41.x 新增的两个写入口，同样拦截信息流视频占用控制中心/灵动岛
+- (void)updateNowPlayingInfoAfterSetModel {
+    if (DYYYGetBool(@"DYYYDisableFeedNowPlayingInfo")) {
+        DYYYClearFeedNowPlayingSystemInfoThrottled();
+        return;
+    }
+    %orig;
+}
+
+- (void)updateNowPlayingInfoWhenResiginActive {
+    if (DYYYGetBool(@"DYYYDisableFeedNowPlayingInfo")) {
+        DYYYClearFeedNowPlayingSystemInfoThrottled();
+        return;
+    }
+    %orig;
+}
+
 %end
 
 %hook AWEFeedBackgroundPlayManager
@@ -3221,6 +3238,18 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 %group DYYYSettingsGesture
 
 %hook UIWindow
+// 摇一摇导出当前视图树到剪贴板（调试用，跟随 v3.0）
+- (void)motionEnded:(UIEventSubtype)motion withEvent:(UIEvent *)event {
+    %orig;
+    if (motion == UIEventSubtypeMotionShake && DYYYGetBool(@"DYYYShakeExportViewTree")) {
+        UIWindow *win = [DYYYUtils getActiveWindow] ?: self;
+        NSString *tree = [DYYYUtils describeViewTree:win];
+        if (tree.length > 0) {
+            [UIPasteboard generalPasteboard].string = tree;
+            [DYYYUtils showToast:[NSString stringWithFormat:@"视图树已复制（%lu 字）", (unsigned long)tree.length]];
+        }
+    }
+}
 - (instancetype)initWithFrame:(CGRect)frame {
     UIWindow *window = %orig(frame);
     if (window) {
@@ -4531,6 +4560,40 @@ static NSArray<NSString *> *dyyy_qualityRank = nil;
 
 %group AutoPlay
 
+// 41.x 详情页行高基准修复（源自 v3.0）：全屏模式下把 tableView 行高基准从"屏高-底栏"提到屏高，
+// 避免 873/956 混排导致翻页错位、文案上移。只在 DYYYEnableFullScreen 开启时生效。
+static CGFloat DYYYDetailFullCellHeight(CGFloat orig) {
+    if (!DYYYGetBool(@"DYYYEnableFullScreen")) return orig;
+    CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+    CGFloat diff = screenH - orig;
+    return (orig > 1.0 && diff > 1.0 && diff < 160.0) ? screenH : orig;
+}
+
+%hook AWEDetailFeedScrollDelegateContainer
+- (CGFloat)fixedCellHeight { return DYYYDetailFullCellHeight(%orig); }
+%end
+
+%hook AWEUserProfileAdDataLayer
+- (CGFloat)originalTableViewHeight { return DYYYDetailFullCellHeight(%orig); }
+- (void)setOriginalTableViewHeight:(CGFloat)height { %orig(DYYYDetailFullCellHeight(height)); }
+%end
+
+%hook AWEUserProFileAdVideoDataController
+- (CGFloat)originalTableViewHeight { return DYYYDetailFullCellHeight(%orig); }
+- (void)updateOriginalTableViewHeight:(CGFloat)height { %orig(DYYYDetailFullCellHeight(height)); }
+%end
+
+%hook AWELivePostWorkLiveCardLayoutController
+- (CGFloat)originalTableViewHeight { return DYYYDetailFullCellHeight(%orig); }
+- (void)setOriginalTableViewHeight:(CGFloat)height { %orig(DYYYDetailFullCellHeight(height)); }
+%end
+
+%hook AWELivePostWorkLiveCardLayoutDataLayer
+- (CGFloat)normalHeight { return DYYYDetailFullCellHeight(%orig); }
+- (CGFloat)originalTableViewHeight { return DYYYDetailFullCellHeight(%orig); }
+- (void)setOriginalTableViewHeight:(CGFloat)height { %orig(DYYYDetailFullCellHeight(height)); }
+%end
+
 %hook AWEAwemeDetailTableViewController
 
 - (BOOL)hasIphoneAutoPlaySwitch {
@@ -4579,6 +4642,10 @@ static CGFloat initialTouchX = 0;
 static BOOL isGestureActive = NO;
 
 - (CGFloat)longPressFastSpeedValue {
+    // 41.x：长按期间抖音持续读取本方法驱动倍速；上下滑时必须返回实时档位，否则被原值压回。
+    if (isGestureActive && currentLongPressSpeed > 0) {
+        return currentLongPressSpeed;
+    }
     float longPressSpeed = DYYYGetFloat(@"DYYYLongPressSpeed");
     if (longPressSpeed == 0) {
         longPressSpeed = 2.0;
@@ -4702,13 +4769,81 @@ static BOOL isGestureActive = NO;
 %end
 %end
 
+// DPlayer 流（41.x 新版主信息流）长按倍速：值源/手势/应用分别在 AWEDSpeed* 容器族上。
+// 独立静态状态，哪个容器类在运行时活着就由它生效；旧架构照常走 AWEPlayInteractionSpeedController。
+static BOOL dyyyDPSpeedGestureActive = NO;
+static CGFloat dyyyDPSpeedCurrent = 0;
+static CGFloat DYYYLongPressSetSpeedValue(void) {
+    if (dyyyDPSpeedGestureActive && dyyyDPSpeedCurrent > 0) {
+        return dyyyDPSpeedCurrent;
+    }
+    float s = DYYYGetFloat(@"DYYYLongPressSpeed");
+    return (s == 0) ? 2.0 : s;
+}
+
+%hook AWEDSpeedCoreContainer
+- (double)longPressFastSpeedValue {
+    return (double)DYYYLongPressSetSpeedValue();
+}
+
+- (void)handleFastSpeed:(id)gesture {
+    %orig;
+    if (!DYYYGetBool(@"DYYYEnableLongPressSpeedGesture")) {
+        return;
+    }
+    if (![gesture isKindOfClass:[UIGestureRecognizer class]]) {
+        return;
+    }
+    UIGestureRecognizer *g = (UIGestureRecognizer *)gesture;
+    CGPoint location = [g locationInView:g.view];
+    static CGFloat dpInitialY = 0;
+    if (g.state == UIGestureRecognizerStateBegan) {
+        dpInitialY = location.y;
+        dyyyDPSpeedGestureActive = YES;
+        float s = DYYYGetFloat(@"DYYYLongPressSpeed");
+        dyyyDPSpeedCurrent = (s == 0) ? 2.0 : s;
+    } else if (g.state == UIGestureRecognizerStateChanged && dyyyDPSpeedGestureActive) {
+        CGFloat deltaY = location.y - dpInitialY;
+        if (fabs(deltaY) > 10.0) {
+            CGFloat newSpeed = dyyyDPSpeedCurrent + ((deltaY > 0) ? 0.25 : -0.25);
+            newSpeed = MAX(0.5, MIN(3.0, newSpeed));
+            if (newSpeed != dyyyDPSpeedCurrent) {
+                dyyyDPSpeedCurrent = newSpeed;
+                dpInitialY = location.y;
+                ((void (*)(id, SEL, double))objc_msgSend)(self, @selector(changeSpeed:), (double)newSpeed);
+            }
+        }
+    } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
+        dyyyDPSpeedGestureActive = NO;
+        dyyyDPSpeedCurrent = 0;
+        dpInitialY = 0;
+    }
+}
+%end
+
+%hook AWEDSpeedFeedContainer
+- (double)longPressFastSpeedValue { return (double)DYYYLongPressSetSpeedValue(); }
+%end
+
+%hook AWEDSpeedPinchContainer
+- (double)longPressFastSpeedValue { return (double)DYYYLongPressSetSpeedValue(); }
+%end
+
+%hook AFDPureModePageLongPressFastSpeedController
+- (double)longPressFastSpeedValue { return (double)DYYYLongPressSetSpeedValue(); }
+%end
+
 %hook UILabel
 
 - (void)setText:(NSString *)text {
     UIView *superview = self.superview;
 
     if ([superview isKindOfClass:%c(AFDFastSpeedView)] && text) {
+        // v3.0：用正则只替换官方文案里的第一个数字，兼容非 "2" 开头的倍速文案。
         CGFloat displaySpeed = isGestureActive && currentLongPressSpeed > 0 ? currentLongPressSpeed : DYYYGetFloat(@"DYYYLongPressSpeed");
+        if (dyyyDPSpeedGestureActive && dyyyDPSpeedCurrent > 0) {
+            displaySpeed = dyyyDPSpeedCurrent;
+        }
         if (displaySpeed == 0) {
             displaySpeed = 2.0;
         }
@@ -4720,8 +4855,10 @@ static BOOL isGestureActive = NO;
             speedString = [speedString substringToIndex:speedString.length - 1];
         }
 
-        if ([text containsString:@"2"]) {
-            text = [text stringByReplacingOccurrencesOfString:@"2" withString:speedString];
+        NSRegularExpression *dyyySpeedRe = [NSRegularExpression regularExpressionWithPattern:@"[0-9]+(\\.[0-9]+)?" options:0 error:nil];
+        NSTextCheckingResult *dyyySpeedMatch = [dyyySpeedRe firstMatchInString:text options:0 range:NSMakeRange(0, text.length)];
+        if (dyyySpeedMatch) {
+            text = [text stringByReplacingCharactersInRange:dyyySpeedMatch.range withString:speedString];
         }
     }
 
@@ -4737,6 +4874,48 @@ static BOOL isGestureActive = NO;
         return YES;
     }
     return %orig;
+}
+%end
+
+// v3.0：41.x 保存他人头像管理类改名（旧类保留以兼容老版本）
+%hook AWEProfileAvatarFunctionManager
+- (BOOL)shouldShowSaveAvatarItem {
+    if (DYYYGetBool(@"DYYYEnableSaveAvatar")) {
+        return YES;
+    }
+    return %orig;
+}
+%end
+
+// v3.0：隐藏头像按钮（41.x 右侧头像是 Element，走官方 setHide:）
+%hook AWEPlayInteractionUserAvatarElement
+- (void)layoutElementView {
+    %orig;
+    if (DYYYGetBool(@"DYYYHideAvatarButton")) {
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(self, @selector(setHide:), YES);
+    }
+}
+%end
+
+%hook AWEPlayInteractionUserAvatarOptElementElement
+- (void)layoutElementView {
+    %orig;
+    if (DYYYGetBool(@"DYYYHideAvatarButton")) {
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(self, @selector(setHide:), YES);
+    }
+}
+%end
+
+// 41.x 首页右侧头像实际类（头像图+直播环+关注气泡整块）
+%hook AWEPlayInteractionUserProfileContainerView
+- (void)layoutSubviews {
+    %orig;
+    BOOL hide = DYYYGetBool(@"DYYYHideAvatarButton");
+    if (((UIView *)self).hidden != hide) ((UIView *)self).hidden = hide;
+}
+- (void)setHidden:(BOOL)hidden {
+    if (DYYYGetBool(@"DYYYHideAvatarButton")) hidden = YES;
+    %orig(hidden);
 }
 %end
 
@@ -6304,6 +6483,14 @@ static void DYYYApplyAvatarFollowPromptSettingsWithRetry(id owner) {
     }
 }
 
+// v3.0：41.x 加号是普通 UIImageView，setHidden: 兜底保证整块隐藏且不可点。
+- (void)setHidden:(BOOL)hidden {
+    if (DYYYGetBool(@"DYYYHideAvatarButton") || DYYYGetBool(@"DYYYHideFollowPromptView")) {
+        hidden = YES;
+    }
+    %orig(hidden);
+}
+
 %end
 
 %hook AWEPlayInteractionElementMaskView
@@ -7220,6 +7407,23 @@ static void DYYYLiveDurationInstallFromInnerFeedCell(id cell) {
 }
 %end
 
+// v3.0：41.x 图文状态栏容器改名（旧类保留以兼容老版本）
+%hook AWEFullPageFeedContainerViewController
+- (BOOL)prefersStatusBarHidden {
+    if (DYYYGetBool(@"DYYYHideStatusbar")) {
+        return YES;
+    }
+    if (DYYYGetBool(@"DYYYHideStatusBarOnClear") && hideButton && hideButton.isElementsHidden) {
+        return YES;
+    }
+    if (class_getInstanceMethod([self class], @selector(prefersStatusBarHidden)) !=
+        class_getInstanceMethod([%c(AWEFullPageFeedContainerViewController) class], @selector(prefersStatusBarHidden))) {
+        return %orig;
+    }
+    return NO;
+}
+%end
+
 // 纯净模式状态栏
 %hook AFDPureModePageListViewController
 - (void)viewWillLayoutSubviews {
@@ -7630,6 +7834,25 @@ static NSHashTable *processedParentViews = nil;
 %end
 
 %hook AWEProfileTaskCardStyleListCollectionViewCell
+- (BOOL)shouldShowPublishGuide {
+    if (DYYYGetBool(@"DYYYHidePostView")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+
+// v3.0：41.x 个人页发布引导/任务卡类改名（旧类保留以兼容老版本）
+%hook AWEProfilePublishGuideCollectionViewCell
+- (void)didMoveToSuperview {
+    %orig;
+    if (DYYYGetBool(@"DYYYHidePostView") && [(UIView *)self superview]) {
+        [(UIView *)self setHidden:YES];
+    }
+}
+%end
+
+%hook AWEUserProfileUGCTaskCardStyleListCollectionViewCell
 - (BOOL)shouldShowPublishGuide {
     if (DYYYGetBool(@"DYYYHidePostView")) {
         return NO;
@@ -10620,6 +10843,7 @@ static Class tabBarButtonClass = nil;
 
     NSMutableArray *visibleButtons = [NSMutableArray array];
     UIView *ipadContainerView = nil;
+    BOOL anyButtonHidden = NO; // v3.0：只有真的隐藏了按钮才重排，避免 41.x 不等宽按钮被挤偏
 
     for (UIView *subview in self.subviews) {
         if ([subview isKindOfClass:generalButtonClass] || [subview isKindOfClass:plusContainerButtonClass] || [subview isKindOfClass:plusButtonClass] ||
@@ -10633,7 +10857,9 @@ static Class tabBarButtonClass = nil;
             subview.userInteractionEnabled = !shouldHide;
             subview.hidden = shouldHide;
 
-            if (!shouldHide) {
+            if (shouldHide) {
+                anyButtonHidden = YES;
+            } else {
                 [visibleButtons addObject:subview];
             }
         } else if ([subview isKindOfClass:tabBarButtonClass]) {
@@ -10644,24 +10870,28 @@ static Class tabBarButtonClass = nil;
         }
     }
 
-    [visibleButtons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
-      return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
-    }];
+    // v3.0：仅当确实隐藏了按钮时才重新均匀布局；否则保留抖音原生布局。
+    // 41.x 新版"朋友/商城"可切换 tab 与"+"按钮原生并非等宽，无条件重排会把按钮挤向中间导致错位。
+    if (anyButtonHidden) {
+        [visibleButtons sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+          return [@(a.frame.origin.x) compare:@(b.frame.origin.x)];
+        }];
 
-    CGFloat offsetX, totalWidth;
-    if (ipadContainerView) {
-        offsetX = ipadContainerView.frame.origin.x;
-        totalWidth = ipadContainerView.bounds.size.width;
-    } else {
-        offsetX = 0;
-        totalWidth = self.bounds.size.width;
-    }
-    CGFloat buttonWidth = (visibleButtons.count > 0) ? (totalWidth / visibleButtons.count) : 0;
+        CGFloat offsetX, totalWidth;
+        if (ipadContainerView) {
+            offsetX = ipadContainerView.frame.origin.x;
+            totalWidth = ipadContainerView.bounds.size.width;
+        } else {
+            offsetX = 0;
+            totalWidth = self.bounds.size.width;
+        }
+        CGFloat buttonWidth = (visibleButtons.count > 0) ? (totalWidth / visibleButtons.count) : 0;
 
-    // 均匀布局按钮
-    for (NSInteger i = 0; i < visibleButtons.count; i++) {
-        UIView *button = visibleButtons[i];
-        button.frame = CGRectMake(offsetX + i * buttonWidth, button.frame.origin.y, buttonWidth, button.frame.size.height);
+        // 均匀布局按钮
+        for (NSInteger i = 0; i < visibleButtons.count; i++) {
+            UIView *button = visibleButtons[i];
+            button.frame = CGRectMake(offsetX + i * buttonWidth, button.frame.origin.y, buttonWidth, button.frame.size.height);
+        }
     }
 
     // 禁用首页刷新功能
@@ -11586,6 +11816,13 @@ static Class tabBarButtonClass = nil;
 %end
 
 %hook AWEFeedViewCell
+// v3.0：41.x 清屏隐藏按钮的复用回调从 AWEFeedTableViewCell 挪到 AWEFeedViewCell
+- (void)prepareForReuse {
+    if (hideButton && hideButton.isElementsHidden) {
+        [hideButton hideUIElements];
+    }
+    %orig;
+}
 - (void)layoutSubviews {
     if (hideButton && hideButton.isElementsHidden) {
         [hideButton hideUIElements];
@@ -12471,6 +12708,16 @@ static Class TagViewClass = nil;
 }
 %end
 
+// v3.0：41.x 挂件容器 Swift 类改名（旧类保留以兼容老版本）
+%hook _TtC21AWEIncentiveSwiftImpl20PendantContainerView
+- (void)layoutSubviews {
+    %orig;
+    if (DYYYGetBool(@"DYYYHidePendantGroup")) {
+        [self removeFromSuperview];
+    }
+}
+%end
+
 %hook UIImageView
 - (void)setImage:(UIImage *)image {
     DYYYApplySDRDynamicRangeToImageView(self);
@@ -12867,11 +13114,17 @@ static void findTargetViewInView(UIView *view) {
 
         // 动态获取 Swift 类并初始化对应的组
         Class commentHeaderGeneralClass = objc_getClass("AWECommentPanelHeaderSwiftImpl.CommentHeaderGeneralView");
+        if (!commentHeaderGeneralClass) {
+            commentHeaderGeneralClass = objc_getClass("AWECommentCommerceSwiftImpl.CommentHeaderGeneralView"); // v3.0: 41.x 改名
+        }
         if (commentHeaderGeneralClass) {
             %init(CommentHeaderGeneralGroup, AWECommentPanelHeaderSwiftImpl_CommentHeaderGeneralView = commentHeaderGeneralClass);
         }
 
         Class commentHeaderGoodsClass = objc_getClass("AWECommentPanelHeaderSwiftImpl.CommentHeaderGoodsView");
+        if (!commentHeaderGoodsClass) {
+            commentHeaderGoodsClass = objc_getClass("AWECommentCommerceSwiftImpl.CommentHeaderGoodsView"); // v3.0: 41.x 改名
+        }
         if (commentHeaderGoodsClass) {
             %init(CommentHeaderGoodsGroup, AWECommentPanelHeaderSwiftImpl_CommentHeaderGoodsView = commentHeaderGoodsClass);
         }

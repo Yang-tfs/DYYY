@@ -1475,8 +1475,9 @@
 }
 %end
 
-// 隐藏评论分享功能
-
+// 隐藏评论分享功能（长按面板顶部"分享给朋友"横排）
+// 旧版 AWEIMCommentShareUserHorizontal* 已移除，41.x 由 CommentLongPressPanelHorizonSectionController 承担（Swift 类，运行时绑定）。
+// 保留对旧类的 hook 以兼容 36.5–40.x；新类在 %ctor 中按运行时是否存在选择性初始化。
 %hook AWEIMCommentShareUserHorizontalCollectionViewCell
 
 - (void)layoutSubviews {
@@ -1509,80 +1510,153 @@
 
 %end
 
+%group DYYYHideShareToFriendsGroup
+%hook DYYYLPShareHorizonSection
+
+- (CGSize)sizeForItemAtIndex:(NSInteger)index model:(id)model collectionViewSize:(CGSize)size {
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentShareToFriends"]) {
+        return CGSizeZero;
+    }
+    return %orig;
+}
+
+- (void)configCell:(id)cell index:(NSInteger)index model:(id)model {
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentShareToFriends"]) {
+        return;
+    }
+    %orig;
+}
+
+%end
+%end
+
 %ctor {
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYUserAgreementAccepted"]) {
         %init;
     }
-}
-
-%group DYYYFilterSetterGroup
-
-%hook HOOK_TARGET_OWNER_CLASS
-
-- (void)setModelsArray:(id)arg1 {
-    if (![arg1 isKindOfClass:[NSArray class]]) {
-        %orig(arg1);
-        return;
-    }
-
-    NSArray *inputArray = (NSArray *)arg1;
-    NSMutableArray *filteredArray = nil;
-
-    for (id item in inputArray) {
-        NSString *className = NSStringFromClass([item class]);
-
-        BOOL shouldFilter = ([className isEqualToString:@"AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelFavoriteCommentElement"] && DYYYGetBool(@"DYYYHideCommentLongPressFavorite")) ||
-                            ([className isEqualToString:@"AWECommentIMSwiftImpl.CommentLongPressPanelForwardElement"] &&
-                             [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentLongPressDaily"]) ||
-
-                            ([className isEqualToString:@"AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelCopyElement"] &&
-                             [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentLongPressCopy"]) ||
-
-                            ([className isEqualToString:@"AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelSaveImageElement"] &&
-                             [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentLongPressSaveImage"]) ||
-
-                            ([className isEqualToString:@"AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelReportElement"] &&
-                             [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentLongPressReport"]) ||
-
-                            ([className isEqualToString:@"AWECommentStudioSwiftImpl.CommentLongPressPanelVideoReplyElement"] &&
-                             [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentLongPressVideoReply"]) ||
-
-                            ([className isEqualToString:@"AWECommentSearchSwiftImpl.CommentLongPressPanelPictureSearchElement"] &&
-                             [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentLongPressPictureSearch"]) ||
-
-                            ([className isEqualToString:@"AWECommentSearchSwiftImpl.CommentLongPressPanelSearchElement"] &&
-                             [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideCommentLongPressSearch"]);
-
-        if (shouldFilter) {
-            if (!filteredArray) {
-                filteredArray = [NSMutableArray arrayWithCapacity:inputArray.count];
-                for (id keepItem in inputArray) {
-                    if (keepItem == item)
-                        break;
-                    [filteredArray addObject:keepItem];
-                }
-            }
-            continue;
-        }
-
-        if (filteredArray) {
-            [filteredArray addObject:item];
-        }
-    }
-
-    if (filteredArray) {
-        %orig([filteredArray copy]);
-    } else {
-        %orig(arg1);
+    Class shareHorizon = objc_getClass("AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelHorizonSectionController");
+    if (shareHorizon) {
+        %init(DYYYHideShareToFriendsGroup, DYYYLPShareHorizonSection = shareHorizon);
     }
 }
 
+// 评论长按面板：逐 Element 命中 -elementShouldShow（数据层）。
+// 41.x 起旧 CommentLongPressPanelNormalSectionViewModel 的 setModelsArray: 过滤失效（类改名/移除），
+// 改为对各 Swift Element 类直接 hook -elementShouldShow；类不存在时自动跳过，兼容 36.5–40.x。
+// 注：保留 fork 独有的 DYYYHideCommentLongPressFavorite 支持。
+
+%group DYYYHideLPFavoriteGroup
+%hook DYYYLPFavoriteElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressFavorite")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+%end
+
+%group DYYYHideLPForwardGroup
+%hook DYYYLPForwardElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressDaily")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+%end
+
+%group DYYYHideLPCopyGroup
+%hook DYYYLPCopyElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressCopy")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+%end
+
+%group DYYYHideLPSaveImageGroup
+%hook DYYYLPSaveImageElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressSaveImage")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+%end
+
+%group DYYYHideLPReportGroup
+%hook DYYYLPReportElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressReport")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+%end
+
+%group DYYYHideLPVideoReplyGroup
+%hook DYYYLPVideoReplyElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressVideoReply")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+%end
+
+%group DYYYHideLPPictureSearchGroup
+%hook DYYYLPPictureSearchElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressPictureSearch")) {
+        return NO;
+    }
+    return %orig;
+}
+%end
+%end
+
+%group DYYYHideLPSearchGroup
+%hook DYYYLPSearchElement
+- (BOOL)elementShouldShow {
+    if (DYYYGetBool(@"DYYYHideCommentLongPressSearch")) {
+        return NO;
+    }
+    return %orig;
+}
 %end
 %end
 
 %ctor {
-    Class ownerClass = objc_getClass("AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelNormalSectionViewModel");
-    if (ownerClass) {
-        %init(DYYYFilterSetterGroup, HOOK_TARGET_OWNER_CLASS = ownerClass);
+    Class c;
+    if ((c = objc_getClass("AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelFavoriteCommentElement"))) {
+        %init(DYYYHideLPFavoriteGroup, DYYYLPFavoriteElement = c);
+    }
+    if ((c = objc_getClass("AWECommentIMSwiftImpl.CommentLongPressPanelForwardElement"))) {
+        %init(DYYYHideLPForwardGroup, DYYYLPForwardElement = c);
+    }
+    if ((c = objc_getClass("AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelCopyElement"))) {
+        %init(DYYYHideLPCopyGroup, DYYYLPCopyElement = c);
+    }
+    if ((c = objc_getClass("AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelSaveImageElement"))) {
+        %init(DYYYHideLPSaveImageGroup, DYYYLPSaveImageElement = c);
+    }
+    if ((c = objc_getClass("AWECommentLongPressPanelSwiftImpl.CommentLongPressPanelReportElement"))) {
+        %init(DYYYHideLPReportGroup, DYYYLPReportElement = c);
+    }
+    if ((c = objc_getClass("AWECommentStudioSwiftImpl.CommentLongPressPanelVideoReplyElement"))) {
+        %init(DYYYHideLPVideoReplyGroup, DYYYLPVideoReplyElement = c);
+    }
+    if ((c = objc_getClass("AWECommentSearchSwiftImpl.CommentLongPressPanelPictureSearchElement"))) {
+        %init(DYYYHideLPPictureSearchGroup, DYYYLPPictureSearchElement = c);
+    }
+    if ((c = objc_getClass("AWECommentSearchSwiftImpl.CommentLongPressPanelSearchElement"))) {
+        %init(DYYYHideLPSearchGroup, DYYYLPSearchElement = c);
     }
 }
