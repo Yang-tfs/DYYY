@@ -12091,11 +12091,15 @@ static Class TagViewClass = nil;
             ty += (viewHeight - viewHeight * currentScale) / 2;
         }
 
-        if (shouldShiftUp) {
-            ty -= targetHeight;
+        // 与 IESLiveStackView 的修复保持一致：41.2.0 直播 cell 已是原生全屏高度，
+        // 不再对每个嵌套层重复施加全屏位移（会导致直播状态标签被累计推到屏幕外）。
+        // 仅在用户显式设置昵称/元素缩放时才应用缩放 transform，否则恢复 identity。
+        BOOL needsScale = fabs(currentScale - 1.0) > 0.001;
+        if (needsScale) {
+            targetTransform = CGAffineTransformMake(currentScale, 0, 0, currentScale, tx, ty);
+        } else {
+            targetTransform = CGAffineTransformIdentity;
         }
-
-        targetTransform = CGAffineTransformMake(currentScale, 0, 0, currentScale, tx, ty);
 
         if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
             self.transform = targetTransform;
