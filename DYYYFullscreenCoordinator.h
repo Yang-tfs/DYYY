@@ -13,8 +13,6 @@
 + (BOOL)layoutNativeInteraction:(UIViewController *)controller;
 + (BOOL)isImageContentController:(UIViewController *)controller;
 + (void)registerTabBar:(UIView *)tabBar;
-/// 推荐流直播控制器登记：加入全屏交互集合并刷新底栏透明化，避免直播底部控件被遮挡。
-+ (void)registerLivePreStreamController:(UIViewController *)controller;
 + (void)invalidateGuides;
 + (CGFloat)bottomOccupiedHeightForView:(UIView *)view;
 + (void)layoutBottomInput:(UIView *)view controller:(UIViewController *)controller;

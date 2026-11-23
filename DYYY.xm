@@ -12219,15 +12219,6 @@ static Class TagViewClass = nil;
 
 %end
 
-%hook AWELiveNewPreStreamViewController
-// 41.2.0 推荐流直播：把直播控制器登记进全屏协调器并触发底栏透明化。
-// 否则直播底部控件（主播名/标签，y≈831~926）会被 y=843 的不透明底栏遮挡。
-- (void)viewDidLayoutSubviews {
-    %orig;
-    [DYYYFullscreenCoordinator registerLivePreStreamController:self];
-}
-%end
-
 %hook IESLiveStackView
 
 + (void)initialize {
@@ -12319,6 +12310,14 @@ static Class TagViewClass = nil;
             targetTransform = CGAffineTransformMake(currentScale, 0, 0, currentScale, tx, ty);
         } else {
             targetTransform = CGAffineTransformIdentity;
+        }
+
+        // 41.2.0 底部信息（主播名/在线人数）与底栏重叠修复：
+        // 直接包含 AWELivePrestreamGuideView 的这一层 IESLiveStackView 是"主播名容器"。
+        // 全屏时直播 cell 被撑到屏高(926)，该容器贴到 y≈831，压在底栏(y=843~926)上。
+        // 仅对这一层做绝对位移上移一个底栏高度（不是逐层累加），让主播名落在底栏上方。
+        if (shouldShiftUp && [DYYYUtils containsSubviewOfClass:GuideViewClass inContainer:self]) {
+            targetTransform = CGAffineTransformTranslate(targetTransform, 0, -targetHeight);
         }
 
         if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {

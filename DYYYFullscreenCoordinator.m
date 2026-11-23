@@ -46,7 +46,7 @@
 @end
 
 @implementation DYYYFullscreenCoordinator
-+ (NSString *)buildIdentifier { return @"fullscreen-live-tabbar-20261123.1"; }
++ (NSString *)buildIdentifier { return @"fullscreen-live-guide-transform-20261123.1"; }
 + (NSString *)contentSourceForController:(UIViewController *)controller {
     // 以当前内容来源为准，不能仅凭它仍挂在首页导航栈中判断。
     for (NSUInteger depth = 0; controller && depth < 8; depth++, controller = controller.parentViewController) {
@@ -81,16 +81,10 @@
 + (BOOL)usesFullscreenLayoutForController:(UIViewController *)controller {
     Class remoteClass = NSClassFromString(@"AFDPlayRemoteFeedTableViewController");
     BOOL pureMode = NO;
-    BOOL livePreStream = NO;
     for (UIViewController *parent = controller; parent; parent = parent.parentViewController) {
         if (remoteClass && [parent isKindOfClass:remoteClass]) return NO;
         if ([parent respondsToSelector:@selector(getPureModeContainerFrame)]) pureMode = YES;
-        // 推荐流直播 cell 的控制器：41.2.0 下其 cell 已是原生全屏高度，
-        // 但 referString 非 homepage_hot、且无 currentVisibleCellIndex，
-        // 原判断会漏掉它，导致底栏不透明化、直播底部控件（主播名/标签）被遮挡。
-        if ([parent isKindOfClass:NSClassFromString(@"AWELiveNewPreStreamViewController")]) livePreStream = YES;
     }
-    if (livePreStream) return YES;
     if (pureMode || [self usesRecommendedLayoutForController:controller] || [self usesDetailLayoutForController:controller]) return YES;
     UIView *view = controller.viewIfLoaded;
     if (!view.window) return NO;
@@ -361,14 +355,6 @@
     }
     BOOL enabled = DYYYGetBool(@"DYYYHideBottomBg") || (DYYYGetBool(@"DYYYEnableFullScreen") && playback);
     [self layoutBottomBar:bar controller:nil enabled:enabled];
-}
-+ (void)registerLivePreStreamController:(UIViewController *)controller {
-    if (![NSThread isMainThread] || !controller) return;
-    if (!controller.viewIfLoaded.window) return;
-    [[self interactions] addObject:controller];
-    for (UIView *bar in [self tabBars].allObjects) {
-        if (bar.window == controller.viewIfLoaded.window) [self layoutRootTabBar:bar];
-    }
 }
 + (void)registerTabBar:(UIView *)tabBar {
     if (![NSThread isMainThread]) return;
