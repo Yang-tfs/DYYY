@@ -72,8 +72,17 @@
 | Logos 结构完整性 | ✅ 通过 | `DYYY.xm`: 336 `%hook` + 16 `%group` = 352 `%end`；`DYYYLongPressPanel.xm`: 16+9=25，均平衡 |
 | 引用完整性 | ✅ 通过 | `describeViewTree:` / `getActiveWindow` / `showToast:` 均在 `DYYYUtils.h/.m` 存在；新类声明已补入 `AwemeHeaders.h` |
 | 静态管线测试 | ⚠️ 部分 | `tests/run_pipeline_regressions.py` 在 UTF-8 模式下通过静态检查，随后因 Windows 无 macOS `clang`/Apple frameworks 无法编译（预期限制） |
-| GitHub Actions 云端编译 | ⏳ 待触发 | 当前环境无 GitHub API Token，无法用 `workflow_dispatch`；见下方操作 |
+| GitHub Actions 云端编译 | ✅ 通过 | [run #45166185863](https://github.com/Yang-tfs/DYYY/actions/runs/45166185863) success；产物 `DYYY-20261123193455`：3 个 Deb（rootful/rootless/roothide）+ `DYYY_3.0.2.dylib` |
 | 真机回归 | ⏳ 待做 | 需 macOS + 越狱/注入环境（建议 iPhone XR / iOS 16 / 抖音 40.7.0 与 41.2.0 双版本） |
+
+### 4.1 构建中修复的编译问题记录
+
+前三次 CI 失败及修复（均已提交）：
+1. `AwemeHeaders.h` 中后台播放类写成 category → 改为普通 `@interface`（`a2e8a1e`）；
+2. `DYYYUtils.m` 中 v3.0 探针函数 `DYYYAppendViewTree` 与 fork 原有同名函数签名冲突 → 重命名为 `DYYYAppendViewTreeWithProbes`（`2ea0d4c`）；
+3. huami patch 把两个旧类声明**改名**导致 fork 原 hook 只有前向声明 → 恢复旧类名声明、与 41.x 新类名并存；同时移除我新增的与 fork 重复的 `AWEPlayInteractionUserAvatarOptElementElement layoutElementView` hook（`4a77fde`）。
+
+**教训**：fork 与 huami v3.0 差异巨大，任何从 v3.0 直接 `git apply` 的补丁都必须逐行核对是否与 fork 原有声明/函数重名，尤其是集中式头文件 `AwemeHeaders.h` 里的类声明。
 
 ## 5. 下一步操作清单（用户侧）
 
