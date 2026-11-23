@@ -95,7 +95,13 @@
 
 **诊断**：直播信息层所有 `IESLiveStackView` 被强制 `translateY=-20`（日志中 −20/−40/−131 逐层累加）。根因是 `DYYY.xm` 中 2025 年的临时 hack（提交 `b289285` "不知道谁改的 写死把"）：把计算好的 `tx/ty` 丢弃，对每个嵌套 StackView 无条件写死 `CGAffineTransformMakeTranslation(0, -20)`。41.2.0 直播 cell 已是原生全屏高度，该补偿纯属多余且因嵌套累积导致错位。
 
-**修复**（`8697039`）：`IESLiveStackView layoutSubviews` 改为只在用户显式设置昵称/元素缩放时应用缩放 transform，否则恢复 identity；不再对每个嵌套层施加全屏位移。CI 构建验证通过：[run #45171418708](https://github.com/Yang-tfs/DYYY/actions/runs/45171418708)（artifact `DYYY-20261123201600`）。**待真机复测确认**。
+**修复过程**：
+1. `8697039`：移除 `IESLiveStackView` 写死的 −20 位移（日志确认生效：顶层从 `y=-20` 变 `y=0`）。
+2. `7ead417`：`AWEElementStackView` 直播分支同步移除全屏重复位移。
+3. 用户复测仍"控件被遮挡、关闭全屏后正常"。用**绝对坐标**重新分析日志（frame 相对父视图，需逐级累加）发现真正主因：直播底部控件在屏幕 **y≈831~926**，而底栏 `AWENormalModeTabBar` 覆盖 **y=843~926** 且背景 `alpha=1.00` 完全不透明——底栏没为直播场景透明化。
+4. `0d33faa`（最终修复）：根因是直播控制器 `AWELiveNewPreStreamViewController` 未登记进全屏协调器，且 `referString` 非 `homepage_hot`、无 `currentVisibleCellIndex`，导致 `layoutRootTabBar` 的 `playback=NO`。修复：`usesFullscreenLayoutForController` 识别直播 pre-stream 控制器；新增 `registerLivePreStreamController:` 并在直播 VC 的 `viewDidLayoutSubviews` 调用；更新 `buildIdentifier`。
+
+CI 构建通过：[run #45178490318](https://github.com/Yang-tfs/DYYY/actions/runs/45178490318)，dylib 已本地留存（`DYYY_3.0.2_run45178490318.dylib`，SHA-256 `A953F38C88AD0A3F12A55F2C45BD64305F843CC5F00E98BAFE982D8034D350D0`）。**待真机复测确认**。
 
 ### 4.1 构建中修复的编译问题记录
 
