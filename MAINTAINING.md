@@ -99,9 +99,10 @@
 1. `8697039`：移除 `IESLiveStackView` 写死的 −20 位移（日志确认生效：顶层从 `y=-20` 变 `y=0`）。
 2. `7ead417`：`AWEElementStackView` 直播分支同步移除全屏重复位移。
 3. 用户复测仍"控件被遮挡、关闭全屏后正常"。用**绝对坐标**重新分析日志（frame 相对父视图，需逐级累加）发现真正主因：直播底部控件在屏幕 **y≈831~926**，而底栏 `AWENormalModeTabBar` 覆盖 **y=843~926** 且背景 `alpha=1.00` 完全不透明——底栏没为直播场景透明化。
-4. `0d33faa`（最终修复）：根因是直播控制器 `AWELiveNewPreStreamViewController` 未登记进全屏协调器，且 `referString` 非 `homepage_hot`、无 `currentVisibleCellIndex`，导致 `layoutRootTabBar` 的 `playback=NO`。修复：`usesFullscreenLayoutForController` 识别直播 pre-stream 控制器；新增 `registerLivePreStreamController:` 并在直播 VC 的 `viewDidLayoutSubviews` 调用；更新 `buildIdentifier`。
+4. `0d33faa`：尝试让底栏为直播透明化（登记直播控制器）。真机复测反馈：**底栏标签与主播名重叠**——透明化后直播 UI 仍按 926 全屏高度排版，主播名伸进底栏区域，只是从"被遮挡"变成"文字重叠"。
+5. `c12c12e`（当前最终修复）：直播 cell **不参与全屏撑高**。`AWEFeedTableView` 在全屏模式下若可见 cell 为 `AWEFeedLiveStreamTableViewCell`，按 `屏高 - 底栏高度`(843) 排版，直播控件自然落在底栏上方；撤销 `0d33faa` 的底栏透明化改动，底栏恢复常规不透明显示。效果与"关闭首页全屏"时一致。
 
-CI 构建通过：[run #45178490318](https://github.com/Yang-tfs/DYYY/actions/runs/45178490318)，dylib 已本地留存（`DYYY_3.0.2_run45178490318.dylib`，SHA-256 `A953F38C88AD0A3F12A55F2C45BD64305F843CC5F00E98BAFE982D8034D350D0`）。**待真机复测确认**。
+CI 构建通过：[run #45182007855](https://github.com/Yang-tfs/DYYY/actions/runs/45182007855)，dylib 已本地留存（`DYYY_3.0.2_run45182007855.dylib`，SHA-256 `17254003B8AC6A355F8A62AB39D76A811663CEBE1277E4BCA788AE8050549777`）。**待真机复测确认**。
 
 ### 4.1 构建中修复的编译问题记录
 
