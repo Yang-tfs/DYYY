@@ -2197,10 +2197,10 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @end
 
 #pragma mark - v3.0 同步：41.x 后台播放写入口
-@interface AWEFeedBackgroundPlayManager (DYYYV3)
+@interface AWEFeedBackgroundPlayManager : NSObject
 - (void)updateNowPlayingInfoPlayback;
 @end
-@interface AWEAwemeBackgroundPlayModule (DYYYV3)
+@interface AWEAwemeBackgroundPlayModule : NSObject
 - (void)updateNowPlayingInfoAfterSetModel;
 - (void)updateNowPlayingInfoWhenResiginActive;
 @end
