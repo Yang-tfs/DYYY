@@ -231,3 +231,8 @@ GITHUB_ACTIONS=true make package
     <a href="https://star-history.com/#Wtrwx/DYYY">
         <img src="https://api.star-history.com/svg?repos=Wtrwx/DYYY&type=Date" width="75%" alt="Star History"></a>
 </p>
+
+
+## 维护接手说明
+
+本仓库由 Yang-tfs 接管维护。抖音 41.2.0 适配移植见 [MAINTAINING.md](MAINTAINING.md) 与 sync-v3.0 分支。
