@@ -11777,23 +11777,9 @@ static Class tabBarButtonClass = nil;
     %orig;
 
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
-        // 41.2.0 推荐流直播：直播 cell 不能按全屏高度排版。
-        // 直播 UI（主播名/标签）按 cell 高度铺到底部，撑到 926 会伸进 y=843 的底栏区域，
-        // 导致与底栏文字重叠。直播可见时按常规高度（屏高 - 底栏）排版，与关闭全屏时一致。
-        BOOL liveVisible = NO;
-        Class liveCellClass = NSClassFromString(@"AWEFeedLiveStreamTableViewCell");
-        if (liveCellClass) {
-            for (UITableViewCell *cell in [(UITableView *)self visibleCells]) {
-                if ([cell isKindOfClass:liveCellClass]) { liveVisible = YES; break; }
-            }
-        }
         CGRect frame = self.frame;
-        CGFloat targetHeight = self.superview.frame.size.height;
-        if (liveVisible && gCurrentTabBarHeight > 0) {
-            targetHeight -= gCurrentTabBarHeight;
-        }
-        frame.size.height = targetHeight;
-        if (fabs(self.frame.size.height - targetHeight) > 0.5) self.frame = frame;
+        frame.size.height = self.superview.frame.size.height;
+        self.frame = frame;
     } else if (gCurrentTabBarHeight > 0) {
         UIWindow *keyWindow = [DYYYUtils getActiveWindow];
         if (keyWindow && keyWindow.safeAreaInsets.bottom == 0) {
@@ -12231,6 +12217,15 @@ static Class TagViewClass = nil;
     return originalSubviews;
 }
 
+%end
+
+%hook AWELiveNewPreStreamViewController
+// 41.2.0 推荐流直播：把直播控制器登记进全屏协调器并触发底栏透明化。
+// 否则直播底部控件（主播名/标签，y≈831~926）会被 y=843 的不透明底栏遮挡。
+- (void)viewDidLayoutSubviews {
+    %orig;
+    [DYYYFullscreenCoordinator registerLivePreStreamController:self];
+}
 %end
 
 %hook IESLiveStackView
