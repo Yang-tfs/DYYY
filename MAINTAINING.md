@@ -106,6 +106,26 @@
 
 **教训**：fork 与 huami v3.0 差异巨大，任何从 v3.0 直接 `git apply` 的补丁都必须逐行核对是否与 fork 原有声明/函数重名，尤其是集中式头文件 `AwemeHeaders.h` 里的类声明。
 
+## 4.2 本地 dylib 留存（每次构建后必做）
+
+按用户要求：以后每次 CI 构建成功后，都在本地留一份 dylib。
+
+- **存放目录**：`DYYY\artifacts\dylib\`（已加入 `.gitignore`，不会被提交到仓库）
+- **命名**：`DYYY_<版本号>_run<run-id>.dylib`，例如 `DYYY_3.0.2_run45171418708.dylib`
+- **现有一份**：`DYYY_3.0.2_run45171418708.dylib`（2.92 MB，SHA-256 `F15484B0F10F8D1B2C1A80CBB618A74F1A9D97CAE5B9DB513F7F44DAB84C088C`），来自直播修复后的成功构建 run #45171418708
+
+**自动下载脚本**：`DYYY\scripts\fetch-artifact.ps1`
+
+```powershell
+# 下载最近一次成功 build deb run 的 dylib（默认行为）
+powershell -ExecutionPolicy Bypass -File scripts/fetch-artifact.ps1
+
+# 下载指定 run 的 dylib
+powershell -ExecutionPolicy Bypass -File scripts/fetch-artifact.ps1 -RunId 45171418708
+```
+
+脚本从本机 Git 凭据管理器读取 GitHub token，无需用户交出账号密码；同一 run 重复运行会跳过已存在文件（加 `-Force` 可覆盖）。以后我每次触发构建并确认成功后，会立即运行该脚本留存 dylib 并报告 SHA-256。
+
 ## 5. 下一步操作清单（用户侧）
 
 1. **触发云端构建**（二选一）：
