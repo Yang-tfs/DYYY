@@ -4897,14 +4897,8 @@ static CGFloat DYYYLongPressSetSpeedValue(void) {
 }
 %end
 
-%hook AWEPlayInteractionUserAvatarOptElementElement
-- (void)layoutElementView {
-    %orig;
-    if (DYYYGetBool(@"DYYYHideAvatarButton")) {
-        ((void (*)(id, SEL, BOOL))objc_msgSend)(self, @selector(setHide:), YES);
-    }
-}
-%end
+// 注：AWEPlayInteractionUserAvatarOptElementElement 已有本 fork 的隐藏逻辑（约 L9944），
+//     其 layoutElementView 已调用 DYYYHideAvatarVisualForSelector，不再重复 hook，避免重定义编译错误。
 
 // 41.x 首页右侧头像实际类（头像图+直播环+关注气泡整块）
 %hook AWEPlayInteractionUserProfileContainerView
