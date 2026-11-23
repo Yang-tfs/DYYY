@@ -7994,6 +7994,33 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
+%hook AWELivePrestreamGuideView
+// 41.2.0 推荐页直播：主播名容器被透明底栏的文字遮挡。
+// 直接对主播名 view 自身设绝对 transform，把它从原生位置移到底栏上方（targetY≈790，
+// 即屏高 926 - 底栏 83 - 自身高度 53），一层到位，不依赖嵌套层级匹配，
+// 也不用改 tableView/visibleCells，规避卡死。
+- (void)layoutSubviews {
+    %orig;
+    if (![NSThread isMainThread]) return;
+    UIView *view = (UIView *)self;
+    if (!view.window) return;
+    CGFloat viewH = view.bounds.size.height;
+    if (viewH <= 0 || viewH > 200) return; // 只处理主播名这种小容器
+
+    CGAffineTransform target = CGAffineTransformIdentity;
+    if (DYYYGetBool(@"DYYYEnableFullScreen") && gCurrentTabBarHeight > 0) {
+        // 用 frame（不含自身 transform）算原生位置，得到稳定的绝对 transform
+        CGRect nativeRect = [view.superview convertRect:view.frame toView:view.window];
+        CGFloat targetTop = [UIScreen mainScreen].bounds.size.height - gCurrentTabBarHeight - viewH - 5;
+        CGFloat deltaY = targetTop - nativeRect.origin.y;
+        target = CGAffineTransformMakeTranslation(0, deltaY);
+    }
+    if (!CGAffineTransformEqualToTransform(view.transform, target)) {
+        view.transform = target;
+    }
+}
+%end
+
 // 隐藏点击进入直播间
 %hook AWELiveFeedStatusLabel
 - (void)layoutSubviews {
@@ -12320,45 +12347,8 @@ static Class TagViewClass = nil;
             targetTransform = CGAffineTransformIdentity;
         }
 
-        // 41.2.0 底部信息（主播名/在线人数）与底栏重叠修复：
-        // 只上移"直接"持有主播名 AWELivePrestreamGuideView 的那一层 stack。
-        // 注意：不能用 containsSubviewOfClass（递归），否则多层嵌套 stack 都会匹配，
-        // 每层各上移一次底栏高度会累加，导致主播名被推得过高。
-        // 这里要求主播名容器是当前 stack 的【直接子视图】，保证整条链只上移一次。
-        if (shouldShiftUp && GuideViewClass) {
-            BOOL directlyContainsGuide = NO;
-            for (UIView *child in self.subviews) {
-                if ([child isKindOfClass:GuideViewClass] ||
-                    [NSStringFromClass([child class]) containsString:@"AWELivePrestreamGuideView"]) {
-                    directlyContainsGuide = YES;
-                    break;
-                }
-                // 兼容中间包壳的情况（日志里实际是 stack -> IESLiveLayoutContainerView
-                // -> AWEBaseElementView -> AWELivePrestreamGuideView）。
-                // 只要子视图不是另一层 IESLiveStackView，就往下再找最多 2 层。
-                if (![child isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
-                    for (UIView *sub in child.subviews) {
-                        if ([sub isKindOfClass:GuideViewClass] ||
-                            [NSStringFromClass([sub class]) containsString:@"AWELivePrestreamGuideView"]) {
-                            directlyContainsGuide = YES;
-                            break;
-                        }
-                        for (UIView *sub2 in sub.subviews) {
-                            if ([sub2 isKindOfClass:GuideViewClass] ||
-                                [NSStringFromClass([sub2 class]) containsString:@"AWELivePrestreamGuideView"]) {
-                                directlyContainsGuide = YES;
-                                break;
-                            }
-                        }
-                        if (directlyContainsGuide) break;
-                    }
-                }
-                if (directlyContainsGuide) break;
-            }
-            if (directlyContainsGuide) {
-                targetTransform = CGAffineTransformTranslate(targetTransform, 0, -targetHeight);
-            }
-        }
+        // 主播名与底栏重叠已改由 AWELivePrestreamGuideView 自身 hook 精确定位处理，
+        // 这里不再对嵌套 IESLiveStackView 施加位移，避免逐层累加导致上移过头。
 
         if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
             self.transform = targetTransform;

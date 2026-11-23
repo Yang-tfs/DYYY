@@ -567,6 +567,9 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @interface AWELiveNewPreStreamViewController : UIViewController
 @end
 
+@interface AWELivePrestreamGuideView : UIView
+@end
+
 @interface CommentInputContainerView : UIView
 @end
 
