@@ -12295,10 +12295,18 @@ static Class TagViewClass = nil;
             ty += (viewHeight - viewHeight * currentScale) / 2;
         }
 
-        if (shouldShiftUp) {
-            ty -= targetHeight;
+        // 修复 41.2.0 推荐页直播全屏错位：
+        // 旧代码把上面算好的 tx/ty 丢弃，写死 CGAffineTransformMakeTranslation(0, -20)，
+        // 且对每一个嵌套的 IESLiveStackView 都应用（-20/-40/-131 逐层累加），
+        // 使直播信息层整体上移错位。41.2.0 直播 cell 已是原生全屏高度，不再需要位移补偿。
+        // 这里只在用户显式设置了昵称/元素缩放时才应用缩放 transform；
+        // 全屏位移不再对每个嵌套层重复施加，避免累积偏移。没有缩放需求时恢复原生 identity。
+        BOOL needsScale = fabs(currentScale - 1.0) > 0.001;
+        if (needsScale) {
+            targetTransform = CGAffineTransformMake(currentScale, 0, 0, currentScale, tx, ty);
+        } else {
+            targetTransform = CGAffineTransformIdentity;
         }
-        targetTransform = CGAffineTransformMakeTranslation(0, -20);
 
         if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
             self.transform = targetTransform;
