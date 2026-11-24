@@ -103,15 +103,25 @@
 5. `0d33faa`/`c12c12e`：尝试底栏透明化、直播 cell 不撑高。真机复测反馈：底栏与主播名重叠，且**刷视频会卡死**。
 6. `07bbd83`（当前版本，**回滚**）：上述针对直播遮挡的 3~5 步改动**全部回滚**，代码恢复到 `c812537` 稳定基线（仅保留第 1、2 步已验证生效的 −20 位移修复）。卡死疑似由 `AWEFeedTableView layoutSubviews` 中遍历 `visibleCells` 并改 frame 引发布局重入。
 
-7. `e56da84`（当前版本，**重新修复重叠**）：
-   - 彻底撤销 `0d33faa` 的底栏透明化（`livePreStream` / `registerLivePreStreamController` / 直播 VC 的 `viewDidLayoutSubviews` hook）——透明化只会让底栏文字与主播名叠在一起；
-   - 在 `IESLiveStackView layoutSubviews` 中，**只对直接包含 `AWELivePrestreamGuideView`（主播名容器）的那一层**施加 `CGAffineTransformTranslate(0, -targetHeight)` 绝对位移，让主播名落在底栏上方；其他嵌套层保持 identity，不累加；
-   - 关键约束：**不碰 `AWEFeedTableView` 的 frame、不遍历 `visibleCells`**——上次卡死就是因为在 `layoutSubviews` 里做这两件事引发布局重入。
+7. `e56da84` / `18411dc`：继续修正两处误判
+   - `e56da84`：撤销底栏透明化 + 只对含 `AWELivePrestreamGuideView` 的层位移 → 用户反馈"上移太多"；
+   - `18411dc`：改为固定 `translateY=-(底栏高度+12)` → 用户反馈"毫无变化"。
+   - **关键教训（务必记住）**：`convertRect:toView:window` + `view.frame` 在滚动 tableView 里不可用。直播 cell 的 `contentOffset` 可达数万，`frame` 又被自身 transform 污染，每次 layout 累加会把 view 算到屏幕外（实测出现过 `y=-18426`）。任何"按窗口坐标算位移"的写法都必须禁止。
+8. `0e23c3a`（**最终修复，用户已确认生效**）：
+   - 真正被遮的不是 `AWELivePrestreamGuideView`，而是**整个直播信息层**：`IESLiveStackView` 根容器为 `{12,0,404,926}`（宽 404 < 屏宽 428，说明只含 UI、不含视频），其底部信息块（"直播中"状态、主播名 `@xxx`、直播标题、地区标签）排在 y=831~926，正好落在透明底栏 843~926 的文字区；
+   - 在 `IESLiveStackView layoutSubviews` 中识别**根容器**（`bounds.height ≥ 屏高-2` 且 `bounds.width < 屏宽-2`），只对它施加固定 `translateY(-底栏高度)`；其下所有底部信息一起上移，视频渲染层是兄弟视图不受影响；
+   - 底栏透明化保留（用户要的"首页全屏那样的透明底栏"）；
+   - 删除此前改错对象的 `AWELivePrestreamGuideView` hook；
+   - 约束不变：**不碰 `AWEFeedTableView` frame、不遍历 `visibleCells`**（那是刷视频卡死的根因）。
 
-**当前版本 CI 构建通过**：[run #45186035849](https://github.com/Yang-tfs/DYYY/actions/runs/45186035849)。
-本地 dylib 只保留这一份：`DYYY_3.0.2_run45186035849.dylib`（SHA-256 `1225FF6849007F6734198A11602CF78531C9F9E6EE61CEE50B5247A6576F8512`）。
+**当前版本 CI 构建通过**：[run #45385706562](https://github.com/Yang-tfs/DYYY/actions/runs/45385706562)。
+本地 dylib 只保留这一份：`DYYY_3.0.2_run45385706562.dylib`（SHA-256 `A8CA0668EE750FC8094BD31564E90D87AD5382568423F51BCDB18C4A6F37AC81`）。
+真机复测结果：**已修复**（用户 2026-11-24 确认"修好了"）。
 
-**待真机复测**：① 主播名是否落到底栏上方、不再重叠；② 刷视频是否不再卡死（重点）。若仍异常，请再摇一摇导出日志，重点看 `AWELivePrestreamGuideView` 的绝对 Y 与底栏 y=843 的关系。
+**排查方法论（避免重蹈覆辙）**：
+- 先看**截图**确认现象，再对着摇一摇视图树找对应 class；纯靠 frame 数值推断极易误判（日志里 frame 是相对父视图的，需逐级累加，且受 transform 影响）。
+- 直播 pre-stream 结构：`AWEFeedLiveStreamTableViewCell` → `AWELiveNewPreStreamViewController` → `AWELivePreStream4LayerContainerView`（视频渲染 + `IESLiveStackView` UI 层是兄弟）；底部信息块 `IESLiveLayoutContainerView {0,831,404,95}`。
+- 底栏：`AWENormalModeTabBar {0,843,428,83}`；透明化后背景无 bg、但按钮文字仍在。
 
 ### 4.1 构建中修复的编译问题记录
 
@@ -128,7 +138,7 @@
 
 - **存放目录**：`DYYY\artifacts\dylib\`（已加入 `.gitignore`，不会被提交到仓库）
 - **命名**：`DYYY_<版本号>_run<run-id>.dylib`，例如 `DYYY_3.0.2_run45171418708.dylib`
-- **现有一份**：`DYYY_3.0.2_run45171418708.dylib`（2.92 MB，SHA-256 `F15484B0F10F8D1B2C1A80CBB618A74F1A9D97CAE5B9DB513F7F44DAB84C088C`），来自直播修复后的成功构建 run #45171418708
+- **现有一份**：`DYYY_3.0.2_run45385706562.dylib`（2.92 MB，SHA-256 `A8CA0668EE750FC8094BD31564E90D87AD5382568423F51BCDB18C4A6F37AC81`），来自直播底栏遮挡最终修复 run #45385706562
 
 **自动下载脚本**：`DYYY\scripts\fetch-artifact.ps1`
 
