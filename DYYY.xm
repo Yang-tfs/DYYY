@@ -7994,28 +7994,6 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
-%hook AWELivePrestreamGuideView
-// 41.2.0 推荐页直播：主播名被透明底栏的文字遮挡。
-// 关键教训：绝不能用 convertRect:toView:window + view.frame 算位移——直播 cell 位于
-// 滚动 tableView 深处（contentOffset 极大），且 frame 会被 transform 污染，
-// 每次 layout 累加会把主播名算到屏幕外（曾出现 y=-18426）。
-// 这里用【固定绝对 transform】：不读 frame、不读窗口坐标、不累加。
-// 主播名原生贴在 cell 底部（y≈802~855），底栏从 y=843 开始；
-// 固定上移 (底栏高度 + 12)，使其落在底栏上方，一次到位。
-- (void)layoutSubviews {
-    %orig;
-    if (![NSThread isMainThread]) return;
-    UIView *view = (UIView *)self;
-    CGAffineTransform target = CGAffineTransformIdentity;
-    if (DYYYGetBool(@"DYYYEnableFullScreen") && gCurrentTabBarHeight > 0) {
-        target = CGAffineTransformMakeTranslation(0, -(gCurrentTabBarHeight + 12));
-    }
-    if (!CGAffineTransformEqualToTransform(view.transform, target)) {
-        view.transform = target;
-    }
-}
-%end
-
 // 隐藏点击进入直播间
 %hook AWELiveFeedStatusLabel
 - (void)layoutSubviews {
@@ -12342,8 +12320,21 @@ static Class TagViewClass = nil;
             targetTransform = CGAffineTransformIdentity;
         }
 
-        // 主播名与底栏重叠已改由 AWELivePrestreamGuideView 自身 hook 精确定位处理，
-        // 这里不再对嵌套 IESLiveStackView 施加位移，避免逐层累加导致上移过头。
+        // 41.2.0 推荐页直播：底栏透明化后，底栏按钮文字（首页/朋友/消息/我）
+        // 会压在直播底部信息（"直播中"标签、主播名 @xxx、直播标题）上。
+        // 直播信息层的根容器是 IESLiveStackView{宽404, 高926}——宽度小于屏宽(428)，
+        // 说明它只含 UI 覆盖层、不含视频渲染（视频在兄弟视图）。
+        // 对这个根容器整体固定上移一个底栏高度：其下所有底部信息一起落到透明底栏上方，
+        // 不碰 tableView/visibleCells，也不逐层累加，规避卡死与上移过头。
+        CGFloat screenH = [UIScreen mainScreen].bounds.size.height;
+        CGFloat screenW = [UIScreen mainScreen].bounds.size.width;
+        BOOL isLiveInfoRoot = (screenH > 0 && screenW > 0 &&
+                               self.bounds.size.height >= screenH - 2 &&
+                               self.bounds.size.width > 0 &&
+                               self.bounds.size.width < screenW - 2);
+        if (shouldShiftUp && isLiveInfoRoot && targetHeight > 0) {
+            targetTransform = CGAffineTransformTranslate(targetTransform, 0, -targetHeight);
+        }
 
         if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
             self.transform = targetTransform;
