@@ -7995,25 +7995,20 @@ static NSHashTable *processedParentViews = nil;
 %end
 
 %hook AWELivePrestreamGuideView
-// 41.2.0 推荐页直播：主播名容器被透明底栏的文字遮挡。
-// 直接对主播名 view 自身设绝对 transform，把它从原生位置移到底栏上方（targetY≈790，
-// 即屏高 926 - 底栏 83 - 自身高度 53），一层到位，不依赖嵌套层级匹配，
-// 也不用改 tableView/visibleCells，规避卡死。
+// 41.2.0 推荐页直播：主播名被透明底栏的文字遮挡。
+// 关键教训：绝不能用 convertRect:toView:window + view.frame 算位移——直播 cell 位于
+// 滚动 tableView 深处（contentOffset 极大），且 frame 会被 transform 污染，
+// 每次 layout 累加会把主播名算到屏幕外（曾出现 y=-18426）。
+// 这里用【固定绝对 transform】：不读 frame、不读窗口坐标、不累加。
+// 主播名原生贴在 cell 底部（y≈802~855），底栏从 y=843 开始；
+// 固定上移 (底栏高度 + 12)，使其落在底栏上方，一次到位。
 - (void)layoutSubviews {
     %orig;
     if (![NSThread isMainThread]) return;
     UIView *view = (UIView *)self;
-    if (!view.window) return;
-    CGFloat viewH = view.bounds.size.height;
-    if (viewH <= 0 || viewH > 200) return; // 只处理主播名这种小容器
-
     CGAffineTransform target = CGAffineTransformIdentity;
     if (DYYYGetBool(@"DYYYEnableFullScreen") && gCurrentTabBarHeight > 0) {
-        // 用 frame（不含自身 transform）算原生位置，得到稳定的绝对 transform
-        CGRect nativeRect = [view.superview convertRect:view.frame toView:view.window];
-        CGFloat targetTop = [UIScreen mainScreen].bounds.size.height - gCurrentTabBarHeight - viewH - 5;
-        CGFloat deltaY = targetTop - nativeRect.origin.y;
-        target = CGAffineTransformMakeTranslation(0, deltaY);
+        target = CGAffineTransformMakeTranslation(0, -(gCurrentTabBarHeight + 12));
     }
     if (!CGAffineTransformEqualToTransform(view.transform, target)) {
         view.transform = target;
