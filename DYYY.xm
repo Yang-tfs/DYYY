@@ -7855,6 +7855,43 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
+// 我的页「真实生活分享计划」横幅（红圈里的"发作品有机会获得流量激励 / 去发布"）
+// 数据层在 SectionViewModel：isShowingContributionGuideBanner 控制显隐，
+// sectionSize 控制该 section 占位高度。两者一起改，横幅消失且不留 58pt 空白。
+%hook AWEUserProfileUGCHeaderContributionGuideBannerSectionViewModel
+- (BOOL)isShowingContributionGuideBanner {
+    if (DYYYGetBool(@"DYYYHideUGCContributionBanner")) {
+        return NO;
+    }
+    return %orig;
+}
+- (CGSize)sectionSize {
+    if (DYYYGetBool(@"DYYYHideUGCContributionBanner")) {
+        return CGSizeZero;
+    }
+    return %orig;
+}
+%end
+
+// 兜底：即使上层判断被绕过，也把横幅 cell 隐藏
+%hook AWEUserProfileUGCHeaderContributionGuideBannerSectionCell
+- (void)layoutSubviews {
+    %orig;
+    if (DYYYGetBool(@"DYYYHideUGCContributionBanner")) {
+        self.hidden = YES;
+    }
+}
+%end
+
+%hook AWEUserProfileUGCContributionGuideCollectionViewCell
+- (void)layoutSubviews {
+    %orig;
+    if (DYYYGetBool(@"DYYYHideUGCContributionBanner")) {
+        self.hidden = YES;
+    }
+}
+%end
+
 %hook AWEProfileRichEmptyView
 
 - (void)setTitle:(id)title {

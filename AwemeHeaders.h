@@ -2201,6 +2201,20 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 - (BOOL)shouldShowPublishGuide;
 @end
 
+// 我的页「真实生活分享计划」发布引导横幅（41.2.0）
+// 结构：AWEProfileHeaderCollectionView → ...SectionCell → ...CollectionViewCell
+// 数据层：SectionViewModel 的 isShowingContributionGuideBanner / sectionSize 决定显隐与占位高度
+@interface AWEUserProfileUGCHeaderContributionGuideBannerSectionViewModel : NSObject
+- (BOOL)isShowingContributionGuideBanner;
+- (CGSize)sectionSize;
+@end
+@interface AWEUserProfileUGCHeaderContributionGuideBannerSectionController : NSObject
+@end
+@interface AWEUserProfileUGCHeaderContributionGuideBannerSectionCell : UICollectionViewCell
+@end
+@interface AWEUserProfileUGCContributionGuideCollectionViewCell : UICollectionViewCell
+@end
+
 #pragma mark - v3.0 同步：41.x 后台播放写入口
 @interface AWEFeedBackgroundPlayManager : NSObject
 - (void)updateNowPlayingInfoPlayback;

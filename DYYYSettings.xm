@@ -1892,6 +1892,12 @@ void showDYYYSettingsVC(UIViewController *rootVC, BOOL hasAgreed) {
             @"title" : @"隐藏我的页发作品",
             @"detail" : @"",
             @"cellType" : @6,
+            @"imageName" : @"ic_eyeslash_outlined_16"},
+          @{@"identifier" : @"DYYYHideUGCContributionBanner",
+            @"title" : @"隐藏真实生活分享计划",
+            @"subTitle" : @"隐藏我的页「真实生活分享计划」发布引导横幅",
+            @"detail" : @"",
+            @"cellType" : @37,
             @"imageName" : @"ic_eyeslash_outlined_16"}
       ];
       for (NSDictionary *dict in messageAndMineSettings) {
