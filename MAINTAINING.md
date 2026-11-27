@@ -156,7 +156,8 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch-artifact.ps1 -RunId 45171
 
 ### 隐藏「真实生活分享计划」横幅（`403ff07`）
 
-- **开关**：DYYY 设置 → 消息与我的页 → **隐藏真实生活分享计划**（`DYYYHideUGCContributionBanner`）
+- **开关路径（已确认）**：抖音 → 我 → 设置 → DYYY 设置 → **隐藏设置** → **消息页与我的页** → **隐藏真实生活分享计划**（`DYYYHideUGCContributionBanner`，该分类第 15 项，带副标题"隐藏我的页「真实生活分享计划」发布引导横幅"）。也可在 DYYY 设置顶部搜索框搜「真实生活」快速定位。
+- **真机验证**：✅ 用户 2026-11-27 确认功能生效。
 - **对应 UI**：我的页头部、图标行下方的"真实生活分享计划 / 发作品有机会获得流量激励 / 去发布"横幅
 - **实现**（`DYYY.xm`）：
   - 主修改在数据层 `AWEUserProfileUGCHeaderContributionGuideBannerSectionViewModel`：
