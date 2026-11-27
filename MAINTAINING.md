@@ -152,6 +152,21 @@ powershell -ExecutionPolicy Bypass -File scripts/fetch-artifact.ps1 -RunId 45171
 
 脚本从本机 Git 凭据管理器读取 GitHub token，无需用户交出账号密码；同一 run 重复运行会跳过已存在文件（加 `-Force` 可覆盖）。以后我每次触发构建并确认成功后，会立即运行该脚本留存 dylib 并报告 SHA-256。
 
+## 4.3 新增功能记录
+
+### 隐藏「真实生活分享计划」横幅（`403ff07`）
+
+- **开关**：DYYY 设置 → 消息与我的页 → **隐藏真实生活分享计划**（`DYYYHideUGCContributionBanner`）
+- **对应 UI**：我的页头部、图标行下方的"真实生活分享计划 / 发作品有机会获得流量激励 / 去发布"横幅
+- **实现**（`DYYY.xm`）：
+  - 主修改在数据层 `AWEUserProfileUGCHeaderContributionGuideBannerSectionViewModel`：
+    `isShowingContributionGuideBanner` 返回 NO、`sectionSize` 返回 `CGSizeZero`，横幅不显示且**不留 58pt 空白**；
+  - 兜底隐藏 `AWEUserProfileUGCHeaderContributionGuideBannerSectionCell` 与 `AWEUserProfileUGCContributionGuideCollectionViewCell`。
+- **类名核对**：在抖音 41.2.0 砸壳 `AwemeCore` 二进制中确认存在
+  `AWEUserProfileUGCHeaderContributionGuideBannerSectionController` / `...SectionViewModel`
+  及 `sectionSize`（`{CGSize=dd}`）与 `isShowingContributionGuideBanner`（BOOL 属性）。
+- **CI**：[run #46019583460](https://github.com/Yang-tfs/DYYY/actions/runs/46019583460)；dylib `DYYY_3.0.2_run46019583460.dylib`（SHA-256 `697CF081F635FEA2A87282CD38EF731EE984C23B083929BC4975F7649E63D7EC`）。
+
 ## 5. 下一步操作清单（用户侧）
 
 1. **触发云端构建**（二选一）：
